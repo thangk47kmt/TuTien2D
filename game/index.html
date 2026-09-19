@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10251d">
+  <meta name="description" content="Tu Tiên Du Hành - game nhập vai 2D nhẹ trên trình duyệt">
+  <title>Tu Tiên Du Hành</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button id="menuButton" class="icon-button" aria-label="Mở menu">☰</button>
+      <div class="brand"><span class="brand-mark">仙</span><span>Tu Tiên Du Hành</span></div>
+      <div class="online"><i></i><span id="saveStatus">Đã lưu</span></div>
+    </header>
+
+    <aside id="sidebar" class="sidebar">
+      <section class="profile">
+        <div class="avatar">道</div>
+        <div><strong id="playerName">Vô Danh</strong><small id="realmText">Phàm Nhân tầng 1</small></div>
+      </section>
+      <nav>
+        <button data-panel="game" class="active">🗺️ Bản đồ</button>
+        <button data-panel="character">🧙 Nhân vật</button>
+        <button data-panel="inventory">🎒 Túi đồ <span id="inventoryBadge" class="badge">0</span></button>
+        <button data-panel="techniques">📜 Công pháp</button>
+        <button data-panel="cultivation">🧘 Tu luyện</button>
+        <button data-panel="rumors">🔮 Tin cơ duyên</button>
+        <button data-panel="admin">⚙️ Thiết lập MVP</button>
+      </nav>
+      <button id="resetButton" class="danger-link">Tạo lại hành trình</button>
+    </aside>
+
+    <main class="main">
+      <section id="gamePanel" class="panel active">
+        <div class="hud">
+          <div><small>Sinh lực</small><div class="bar"><span id="hpBar" class="hp"></span></div><b id="hpText"></b></div>
+          <div><small>Linh lực</small><div class="bar"><span id="mpBar" class="mp"></span></div><b id="mpText"></b></div>
+          <div><small>Tu vi</small><div class="bar"><span id="xpBar" class="xp"></span></div><b id="xpText"></b></div>
+          <div class="currency"><span>💠 <b id="spiritStones">0</b></span><span>🍀 <b id="fortune">0</b></span></div>
+        </div>
+        <div class="world-layout">
+          <div class="map-wrap">
+            <div class="map-head"><div><b id="zoneName">Thanh Vân Trấn</b><small id="auraText">Linh khí ổn định</small></div><button id="scanButton">Thần thức</button></div>
+            <div id="map" class="map" role="application" aria-label="Bản đồ game"></div>
+            <div class="controls" aria-label="Điều khiển di chuyển">
+              <button data-move="up">▲</button><div><button data-move="left">◀</button><button data-move="down">▼</button><button data-move="right">▶</button></div>
+            </div>
+          </div>
+          <aside class="activity-card">
+            <h2>Nhật ký hành trình</h2>
+            <div id="activityLog" class="activity-log"></div>
+            <button id="restButton" class="secondary">Nghỉ ngơi hồi phục</button>
+          </aside>
+        </div>
+      </section>
+
+      <section id="characterPanel" class="panel content-panel">
+        <h1>Nhân vật</h1><p class="lead">Nghề nghiệp đời thực tạo thiên hướng riêng nhưng không khóa cách chơi.</p>
+        <div id="characterContent"></div>
+      </section>
+      <section id="inventoryPanel" class="panel content-panel"><h1>Túi đồ</h1><div id="inventoryContent"></div></section>
+      <section id="techniquesPanel" class="panel content-panel"><h1>Công pháp</h1><p class="lead">Mỗi công pháp thay đổi cách tu luyện hoặc chiến đấu. Chỉ được vận hành một công pháp chính.</p><div id="techniqueContent"></div></section>
+      <section id="cultivationPanel" class="panel content-panel"><h1>Tu luyện</h1><p class="lead">Có thể đóng trình duyệt sau khi bắt đầu. Kết quả được tính khi quay lại.</p><div id="cultivationContent"></div></section>
+      <section id="rumorsPanel" class="panel content-panel"><h1>Tin cơ duyên</h1><p class="lead">Tin đồn chỉ cho biết dấu hiệu, không tiết lộ chính xác nơi xuất hiện.</p><div id="rumorContent"></div></section>
+      <section id="adminPanel" class="panel content-panel"><h1>Thiết lập MVP</h1><p class="lead">Các hệ số lưu trên thiết bị này để thử cân bằng gameplay.</p><div id="adminContent"></div></section>
+    </main>
+  </div>
+
+  <dialog id="setupDialog" class="modal" data-static>
+    <form id="setupForm" method="dialog">
+      <div class="seal">仙</div><h1>Khởi đầu tiên lộ</h1><p>Chọn tên và nghề nghiệp hiện tại. Nghề chỉ tạo bonus, có thể đổi sau.</p>
+      <label>Tên nhân vật<input id="nameInput" maxlength="18" required placeholder="Nhập đạo hiệu"></label>
+      <label>Nghề nghiệp<select id="professionInput"></select></label>
+      <button type="submit" class="primary">Bắt đầu hành trình</button>
+    </form>
+  </dialog>
+
+  <dialog id="eventDialog" class="modal"><div id="eventContent"></div></dialog>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
