@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/.vs/
+**/.idea/
+*.user
+*.db
+*.db-shm
+*.db-wal
+dist/
+coverage/
+.env
+*.log
+apps/server/src/TuTien.Api/tutien.db
+apps/web/dist

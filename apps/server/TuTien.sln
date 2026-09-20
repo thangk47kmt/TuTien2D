@@ -1,0 +1,31 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuTien.Domain", "src\TuTien.Domain\TuTien.Domain.csproj", "{8853A46D-16AE-49A0-8382-4F06524D4421}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuTien.Application", "src\TuTien.Application\TuTien.Application.csproj", "{BF1B3968-CC65-438A-9596-D31C0BE3BBB8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuTien.Infrastructure", "src\TuTien.Infrastructure\TuTien.Infrastructure.csproj", "{8D01ADCB-BE05-4B57-AA47-A0A5A3066564}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuTien.Api", "src\TuTien.Api\TuTien.Api.csproj", "{0A17F4CC-1AE9-4508-84D7-2D3626E074DD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuTien.Domain.Tests", "tests\TuTien.Domain.Tests\TuTien.Domain.Tests.csproj", "{C2BE2432-7309-48CD-815F-A953CC88BAFF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8853A46D-16AE-49A0-8382-4F06524D4421}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8853A46D-16AE-49A0-8382-4F06524D4421}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF1B3968-CC65-438A-9596-D31C0BE3BBB8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF1B3968-CC65-438A-9596-D31C0BE3BBB8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D01ADCB-BE05-4B57-AA47-A0A5A3066564}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D01ADCB-BE05-4B57-AA47-A0A5A3066564}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A17F4CC-1AE9-4508-84D7-2D3626E074DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A17F4CC-1AE9-4508-84D7-2D3626E074DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C2BE2432-7309-48CD-815F-A953CC88BAFF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C2BE2432-7309-48CD-815F-A953CC88BAFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+	EndGlobalSection
+EndGlobal
