@@ -1,7 +1,9 @@
 name: ci
 on:
-  push:
   pull_request:
+    branches: [main]
+  push:
+    branches: [main]
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -13,9 +15,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - run: dotnet restore
-      - run: dotnet build --no-restore
-      - run: dotnet test --no-build --verbosity minimal
+      - run: dotnet restore TuTien.sln
+      - run: dotnet build TuTien.sln --no-restore
+      - run: dotnet test TuTien.sln --no-build --verbosity minimal
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -27,4 +29,4 @@ jobs:
         with:
           node-version: "22"
       - run: npm install
-      - run: npm run build
+      - run: npx vite build
