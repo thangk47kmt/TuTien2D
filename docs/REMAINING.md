@@ -1,7 +1,13 @@
-# Con thieu (tru GPS, song tu that, Phaser)
+# Con thieu
 
-1. Seed du: 10 nghe, 5 cong phap, vat pham, loot, 5 quai, 3 ruong, zone, tin don.
-2. Combat: elite/rare/boss, Nghich Mach phan phe, len canh gioi.
-3. Ruong pity + idempotent.
-4. UI: cong phap, tu luyen, tin don, du hanh mock, bi canh, admin.
-5. Test integration + PWA toi thieu.
+Doc day du: docs/MASTER_PLAN.md
+
+P0 GameRule + RealmThreshold + ProfessionSkill + Counter.
+P1 Gan cong thuc (tu vi, thuoc tinh, luc chien, skill).
+P2 Ky nang nghe + khac che.
+P3 Admin CRUD that.
+P4 Balance Evaluate/Suggest/Apply + test band 5%.
+P5 Chinh seed.
+
+Da xong slice choi: map, combat, tui, tu luyen, 5 cong phap, ruong pity.
+Khong lam: GPS that, song tu online, Phaser, eval cong thuc.
