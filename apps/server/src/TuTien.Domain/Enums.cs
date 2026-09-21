@@ -16,3 +16,5 @@ public enum ZoneKind { Safe = 0, Meadow = 1, Forest = 2, Mountain = 3, Water = 4
 public enum AuraLevel { Low = 0, Normal = 1, High = 2, Turbulent = 3 }
 public enum RumorKind { RareMonster = 0, AuraShift = 1, Boss = 2, ChestEstimate = 3, ZoneEvent = 4 }
 public enum SkillTag { Burst = 0, Guard = 1, Control = 2, Sense = 3, Craft = 4, Fortune = 5, Utility = 6 }
+public enum StatusPolarity { Buff = 0, Debuff = 1 }
+public enum StatusStackMode { Refresh = 0, Stack = 1, Ignore = 2 }
