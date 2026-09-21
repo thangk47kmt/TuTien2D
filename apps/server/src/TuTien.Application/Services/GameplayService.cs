@@ -102,7 +102,7 @@ public class GameplayService
     }
 
     public async Task<CombatStateDto?> ActiveCombatAsync(Guid userId, CancellationToken ct)
-    { var player = await Load(userId, ct); var s = await _db.CombatSessions.Include(x => x.Actions).FirstOrDefaultAsync(x => x.PlayerId == player.Id && x.Status == CombatStatus.Active, ct); return s is null ? null : ToCombat(s, player); }
+    { var player = await Load(userId, ct); var sess = await _db.CombatSessions.Include(x => x.Actions).FirstOrDefaultAsync(x => x.PlayerId == player.Id && x.Status == CombatStatus.Active, ct); return sess is null ? null : ToCombat(sess, player); }
 
     public async Task<List<InventoryItemDto>> InventoryAsync(Guid userId, CancellationToken ct)
     { var player = await Load(userId, ct); return player.Items.Select(i => ToItem(i, player.Profession!.Code)).ToList(); }
@@ -151,12 +151,12 @@ public class GameplayService
     {
         var player = await Load(userId, ct);
         var chest = await _db.ChestSpawns.Include(c => c.Definition)!.ThenInclude(d => d!.LootTable)!.ThenInclude(t => t!.Entries).ThenInclude(e => e.Item).FirstOrDefaultAsync(c => c.Id == req.ChestId, ct) ?? throw new AppException("chest_missing", "Khong co ruong.");
-        var key = $"chest:{chest.Id}";
-        if (await _db.RewardTransactions.AnyAsync(r => r.IdempotencyKey == key, ct)) return [new RewardLineDto("SpiritStone", "Da nhan", 0)];
+        var chestKey = $"chest:{chest.Id}";
+        if (await _db.RewardTransactions.AnyAsync(r => r.IdempotencyKey == chestKey, ct)) return [new RewardLineDto("SpiritStone", "Da nhan", 0)];
         if (chest.Status != ChestStatus.Spawned) throw new AppException("chest_opened", "Ruong da mo.");
         chest.Status = ChestStatus.Opened; chest.OpenedByPlayerId = player.Id; chest.OpenedAtUtc = DateTime.UtcNow;
         var lines = new List<RewardLineDto>();
-        if (chest.Definition?.LootTable is { } table) { var roll = _loot.Roll(table, player.PityScore, Random.Shared); player.PityScore = _loot.NextPity(player.PityScore, roll.RareHit, table); lines.Add(await Grant(player, roll, RewardSourceType.Chest, chest.Id, key, ct)); }
+        if (chest.Definition?.LootTable is { } table) { var roll = _loot.Roll(table, player.PityScore, Random.Shared); player.PityScore = _loot.NextPity(player.PityScore, roll.RareHit, table); lines.Add(await Grant(player, roll, RewardSourceType.Chest, chest.Id, chestKey, ct)); }
         else { player.SpiritStones += 8; lines.Add(new RewardLineDto("SpiritStone", "+8 linh thach", 8)); }
         await _db.SaveChangesAsync(ct); return lines;
     }
@@ -164,7 +164,7 @@ public class GameplayService
     public async Task<CultivationStatusDto> StartCultivationAsync(Guid userId, StartCultivationRequest req, CancellationToken ct)
     {
         var player = await Load(userId, ct);
-        if (await _db.CultivationSessions.AnyAsync(s => s.PlayerId == player.Id && !s.IsSettled, ct)) throw new AppException("busy", "Dang tu luyen.");
+        if (await _db.CultivationSessions.AnyAsync(sess => sess.PlayerId == player.Id && !sess.IsSettled, ct)) throw new AppException("busy", "Dang tu luyen.");
         var minutes = Math.Clamp(req.Minutes <= 0 ? 5 : req.Minutes, 1, 240);
         var zone = await ZoneAt(player.MapX, player.MapY, ct);
         var xp = (int)Math.Round(minutes * 3 * (zone?.AuraMultiplier ?? 1m) * (1 + Breakdown(player).CultivationPercent / 100m));
@@ -173,17 +173,21 @@ public class GameplayService
         return new CultivationStatusDto(session.Id, session.Status.ToString(), session.EndUtc, session.ExpectedXp, false);
     }
     public async Task<CultivationStatusDto> CultivationStatusAsync(Guid userId, CancellationToken ct)
-    { var player = await Load(userId, ct); var s = await _db.CultivationSessions.Where(x => x.PlayerId == player.Id && !x.IsSettled).OrderByDescending(x => x.StartUtc).FirstOrDefaultAsync(ct); return s is null ? new CultivationStatusDto(null, "None", null, null, false) : new CultivationStatusDto(s.Id, s.Status.ToString(), s.EndUtc, s.ExpectedXp, DateTime.UtcNow >= s.EndUtc); }
+    {
+        var player = await Load(userId, ct);
+        var sess = await _db.CultivationSessions.Where(x => x.PlayerId == player.Id && !x.IsSettled).OrderByDescending(x => x.StartUtc).FirstOrDefaultAsync(ct);
+        return sess is null ? new CultivationStatusDto(null, "None", null, null, false) : new CultivationStatusDto(sess.Id, sess.Status.ToString(), sess.EndUtc, sess.ExpectedXp, DateTime.UtcNow >= sess.EndUtc);
+    }
     public async Task<List<RewardLineDto>> SettleCultivationAsync(Guid userId, string? key, CancellationToken ct)
     {
         var player = await Load(userId, ct);
-        var s = await _db.CultivationSessions.FirstOrDefaultAsync(x => x.PlayerId == player.Id && !s.IsSettled, ct) ?? throw new AppException("no_session", "Khong co phien tu luyen.");
-        if (DateTime.UtcNow < s.EndUtc) throw new AppException("too_soon", "Chua het thoi gian.");
-        var idem = key ?? $"cult:{s.Id}";
+        var session = await _db.CultivationSessions.FirstOrDefaultAsync(x => x.PlayerId == player.Id && !x.IsSettled, ct) ?? throw new AppException("no_session", "Khong co phien tu luyen.");
+        if (DateTime.UtcNow < session.EndUtc) throw new AppException("too_soon", "Chua het thoi gian.");
+        var idem = key ?? ("cult:" + session.Id);
         if (await _db.RewardTransactions.AnyAsync(r => r.IdempotencyKey == idem, ct)) return [new RewardLineDto("CultivationXp", "Da ket toan", 0)];
-        player.CultivationXp += s.ExpectedXp; LevelRealm(player); s.IsSettled = true; s.Status = CultivationStatus.Settled; s.SettledAtUtc = DateTime.UtcNow;
-        _db.RewardTransactions.Add(new RewardTransaction { Id = Guid.NewGuid(), PlayerId = player.Id, SourceType = RewardSourceType.Cultivation, SourceId = s.Id, RewardType = RewardType.CultivationXp, Quantity = s.ExpectedXp, CreatedAtUtc = DateTime.UtcNow, CorrelationId = s.Id, IdempotencyKey = idem });
-        await _db.SaveChangesAsync(ct); return [new RewardLineDto("CultivationXp", $"+{s.ExpectedXp} tu vi", s.ExpectedXp)];
+        player.CultivationXp += session.ExpectedXp; LevelRealm(player); session.IsSettled = true; session.Status = CultivationStatus.Settled; session.SettledAtUtc = DateTime.UtcNow;
+        _db.RewardTransactions.Add(new RewardTransaction { Id = Guid.NewGuid(), PlayerId = player.Id, SourceType = RewardSourceType.Cultivation, SourceId = session.Id, RewardType = RewardType.CultivationXp, Quantity = session.ExpectedXp, CreatedAtUtc = DateTime.UtcNow, CorrelationId = session.Id, IdempotencyKey = idem });
+        await _db.SaveChangesAsync(ct); return [new RewardLineDto("CultivationXp", "+" + session.ExpectedXp + " tu vi", session.ExpectedXp)];
     }
 
     public Task<List<RumorDto>> RumorsAsync(CancellationToken ct) => _db.Rumors.Where(r => r.IsActive).Select(r => new RumorDto(r.Id, r.Kind.ToString(), r.Title, r.Body, r.ApproximateZone, r.Reliability, r.ExpiresAtUtc)).ToListAsync(ct);
@@ -192,10 +196,10 @@ public class GameplayService
     {
         var player = await Load(userId, ct);
         var loc = await _db.TravelLocations.FirstOrDefaultAsync(l => l.Id == req.LocationId, ct) ?? throw new AppException("loc_missing", "Khong co dia diem.");
-        var key = req.IdempotencyKey ?? $"travel:{player.Id}:{loc.Id}:{DateTime.UtcNow:yyyyMMdd}";
-        if (await _db.TravelCheckIns.AnyAsync(c => c.IdempotencyKey == key, ct)) return;
+        var travelKey = req.IdempotencyKey ?? ("travel:" + player.Id + ":" + loc.Id + ":" + DateTime.UtcNow.ToString("yyyyMMdd"));
+        if (await _db.TravelCheckIns.AnyAsync(c => c.IdempotencyKey == travelKey, ct)) return;
         var rules = TravelRules.FromDistance(loc.DistanceKm);
-        _db.TravelCheckIns.Add(new TravelCheckIn { Id = Guid.NewGuid(), PlayerId = player.Id, LocationId = loc.Id, CheckedInAtUtc = DateTime.UtcNow, IdempotencyKey = key });
+        _db.TravelCheckIns.Add(new TravelCheckIn { Id = Guid.NewGuid(), PlayerId = player.Id, LocationId = loc.Id, CheckedInAtUtc = DateTime.UtcNow, IdempotencyKey = travelKey });
         if (rules.DurationHours > 0) _db.TravelBuffs.Add(new TravelBuff { Id = Guid.NewGuid(), PlayerId = player.Id, Multiplier = rules.Multiplier, ExpiresAtUtc = DateTime.UtcNow.AddHours(rules.DurationHours), SourceLocation = loc.Name });
         await _db.SaveChangesAsync(ct);
     }
@@ -209,12 +213,12 @@ public class GameplayService
     public async Task ToggleEventAsync(Guid id, bool enabled, Guid actor, CancellationToken ct) { var ev = await _db.Events.FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw new AppException("missing", "Khong co event.", 404); ev.IsEnabled = enabled; await _db.SaveChangesAsync(ct); }
     public Task<List<RewardTransaction>> RewardsAsync(int take, CancellationToken ct) => _db.RewardTransactions.OrderByDescending(r => r.CreatedAtUtc).Take(take).ToListAsync(ct);
     public Task<List<CombatSession>> CombatsAsync(int take, CancellationToken ct) => _db.CombatSessions.OrderByDescending(r => r.StartedAtUtc).Take(take).ToListAsync(ct);
-    public Task<List<CultivationSession>> CultivationErrorsAsync(CancellationToken ct) => _db.CultivationSessions.Where(s => !s.IsSettled && s.EndUtc < DateTime.UtcNow.AddHours(-2)).ToListAsync(ct);
+    public Task<List<CultivationSession>> CultivationErrorsAsync(CancellationToken ct) => _db.CultivationSessions.Where(sess => !sess.IsSettled && sess.EndUtc < DateTime.UtcNow.AddHours(-2)).ToListAsync(ct);
 
     public async Task EnsureWorldPopulationAsync(CancellationToken ct)
     {
         var defs = await _db.MonsterDefinitions.ToListAsync(ct); if (defs.Count == 0) return;
-        var alive = await _db.MonsterSpawns.CountAsync(s => s.IsAlive, ct); var rng = Random.Shared; var total = Math.Max(1, defs.Sum(d => Math.Max(1, d.SpawnWeight)));
+        var alive = await _db.MonsterSpawns.CountAsync(ms => ms.IsAlive, ct); var rng = Random.Shared; var total = Math.Max(1, defs.Sum(d => Math.Max(1, d.SpawnWeight)));
         while (alive < 10)
         {
             var roll = rng.Next(total); var acc = 0; MonsterDefinition? chosen = null;
@@ -242,11 +246,11 @@ public class GameplayService
         var def = await _db.MonsterDefinitions.Include(m => m.LootTable)!.ThenInclude(t => t!.Entries).ThenInclude(e => e.Item).FirstOrDefaultAsync(m => m.Id == session.MonsterDefinitionId, ct);
         var xp = def?.CultivationXp ?? 18; var stones = def?.SpiritStones ?? 6; stones += stones * Breakdown(player).StoneRewardPercent / 100;
         player.CultivationXp += xp; player.SpiritStones += stones; LevelRealm(player);
-        if (session.MonsterSpawnId is Guid sid) { var spawn = await _db.MonsterSpawns.FirstOrDefaultAsync(s => s.Id == sid, ct); if (spawn is not null) { spawn.IsAlive = false; spawn.DefeatedAtUtc = DateTime.UtcNow; } }
-        var key = $"combat:{session.Id}:win";
-        if (!await _db.RewardTransactions.AnyAsync(r => r.IdempotencyKey == key, ct))
-            _db.RewardTransactions.Add(new RewardTransaction { Id = Guid.NewGuid(), PlayerId = player.Id, SourceType = RewardSourceType.Combat, SourceId = session.Id, RewardType = RewardType.SpiritStone, Quantity = stones, CreatedAtUtc = DateTime.UtcNow, CorrelationId = session.Id, IdempotencyKey = key });
-        if (def?.LootTable is { } table) { var roll = _loot.Roll(table, player.PityScore, Random.Shared); player.PityScore = _loot.NextPity(player.PityScore, roll.RareHit, table); await Grant(player, roll, RewardSourceType.Combat, session.Id, key + ":loot", ct); }
+        if (session.MonsterSpawnId is Guid sid) { var spawn = await _db.MonsterSpawns.FirstOrDefaultAsync(ms => ms.Id == sid, ct); if (spawn is not null) { spawn.IsAlive = false; spawn.DefeatedAtUtc = DateTime.UtcNow; } }
+        var winKey = "combat:" + session.Id + ":win";
+        if (!await _db.RewardTransactions.AnyAsync(r => r.IdempotencyKey == winKey, ct))
+            _db.RewardTransactions.Add(new RewardTransaction { Id = Guid.NewGuid(), PlayerId = player.Id, SourceType = RewardSourceType.Combat, SourceId = session.Id, RewardType = RewardType.SpiritStone, Quantity = stones, CreatedAtUtc = DateTime.UtcNow, CorrelationId = session.Id, IdempotencyKey = winKey });
+        if (def?.LootTable is { } table) { var roll = _loot.Roll(table, player.PityScore, Random.Shared); player.PityScore = _loot.NextPity(player.PityScore, roll.RareHit, table); await Grant(player, roll, RewardSourceType.Combat, session.Id, winKey + ":loot", ct); }
     }
 
     async Task<RewardLineDto> Grant(Player player, LootRoll roll, RewardSourceType src, Guid srcId, string key, CancellationToken ct)
@@ -260,8 +264,8 @@ public class GameplayService
         }
         else player.SpiritStones += roll.Quantity;
         _db.RewardTransactions.Add(new RewardTransaction { Id = Guid.NewGuid(), PlayerId = player.Id, SourceType = src, SourceId = srcId, RewardType = roll.Type, DefinitionId = roll.ItemDefinitionId, Quantity = roll.Quantity, CreatedAtUtc = DateTime.UtcNow, CorrelationId = srcId, IdempotencyKey = key });
-        var name = roll.ItemDefinitionId is Guid id ? (await _db.ItemDefinitions.FindAsync([id], ct))?.Name ?? "do" : "linh thach";
-        return new RewardLineDto(roll.Type.ToString(), $"+{roll.Quantity} {name}", roll.Quantity);
+        var name = roll.ItemDefinitionId is Guid iid ? (await _db.ItemDefinitions.FindAsync([iid], ct))?.Name ?? "do" : "linh thach";
+        return new RewardLineDto(roll.Type.ToString(), "+" + roll.Quantity + " " + name, roll.Quantity);
     }
 
     void LevelRealm(Player player)
@@ -297,13 +301,13 @@ public class GameplayService
     {
         var r = Math.Max(3, Breakdown(player).DetectionRadius);
         var list = new List<VisibleEntityDto>();
-        foreach (var m in await _db.MonsterSpawns.Include(s => s.Definition).Where(s => s.IsAlive).ToListAsync(ct))
+        foreach (var m in await _db.MonsterSpawns.Include(ms => ms.Definition).Where(ms => ms.IsAlive).ToListAsync(ct))
             if (Math.Abs(m.X - player.MapX) <= r && Math.Abs(m.Y - player.MapY) <= r) list.Add(new VisibleEntityDto("monster", m.Id, m.Definition!.Name, m.X, m.Y, m.Definition.Kind.ToString()));
-        foreach (var c in await _db.ChestSpawns.Include(s => s.Definition).Where(s => s.Status == ChestStatus.Spawned).ToListAsync(ct))
+        foreach (var c in await _db.ChestSpawns.Include(cs => cs.Definition).Where(cs => cs.Status == ChestStatus.Spawned).ToListAsync(ct))
             if (Math.Abs(c.X - player.MapX) <= r && Math.Abs(c.Y - player.MapY) <= r) list.Add(new VisibleEntityDto("chest", c.Id, c.Definition!.Name, c.X, c.Y, c.Definition.Quality.ToString()));
         return list;
     }
-    static CombatStateDto ToCombat(CombatSession s, Player p) => new(s.Id, s.MonsterName, s.MonsterHp, s.MonsterMaxHp, p.Hp, p.MaxHp, s.Status.ToString(), s.Actions.OrderBy(a => a.CreatedAtUtc).Select(a => a.Note).ToList());
+    static CombatStateDto ToCombat(CombatSession session, Player p) => new(session.Id, session.MonsterName, session.MonsterHp, session.MonsterMaxHp, p.Hp, p.MaxHp, session.Status.ToString(), session.Actions.OrderBy(a => a.CreatedAtUtc).Select(a => a.Note).ToList());
     static InventoryItemDto ToItem(PlayerItem i, string prof) { var d = i.Definition!; return new InventoryItemDto(i.Id, d.Id, d.Code, d.Name, d.Icon, d.Type.ToString(), d.Quality.ToString(), i.Quantity, i.IsEquipped, i.IsLocked, d.Attack, d.Defense, d.Spirit, d.HealAmount, d.PreferredProfessionCode, d.ProfessionBonusPercent, d.PreferredProfessionCode == prof); }
-    PlayerProfileDto ToProfile(Player p, StatBreakdown b) => new(p.Id, p.Name, p.Profession!.Code, p.Profession.Name, p.Level, p.Realm.ToString(), p.RealmStage, p.CultivationXp, _stats.XpRequired(p), p.Hp, b.MaxHp, p.Mp, b.MaxMp, b.Attack, b.Defense, b.Spirit, b.Agility, b.Fortune, p.Stability, p.SpiritStones, p.ProfessionPoints, p.ExtremePoints, p.RealmLocked, p.MapX, p.MapY, p.ActiveTechnique?.Code, p.PityScore, _stats.CombatPower(b));
+    PlayerProfileDto ToProfile(Player p, StatBreakdown b) => new(p.Id, p.Name, p.Profession!.Code, p.Profession.Name, p.Level, p.Realm.ToString(), p.RealmStage, p.CultivationXp, _stats.XpRequired(p), p.Hp, b.MaxHp, p.Mp, b.MaxMp, b.Attack, b.Defense, b.Spirit, b.Agility, b.Fortune, p.Stability, p.SpiritStones, p.ProfessionPoints, p.ExtremePoints, p.RealmLocked, p.MapX, p.MapY, p.ActiveTechnique?.Code, p.PityScore);
 }
