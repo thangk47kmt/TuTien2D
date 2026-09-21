@@ -43,5 +43,7 @@ public interface IAppDbContext
     DbSet<RealmThreshold> RealmThresholds { get; }
     DbSet<ProfessionSkill> ProfessionSkills { get; }
     DbSet<ProfessionCounter> ProfessionCounters { get; }
+    DbSet<StatusDefinition> StatusDefinitions { get; }
+    DbSet<PlayerStatus> PlayerStatuses { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
