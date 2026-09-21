@@ -61,7 +61,8 @@ public static class CombatRulesHelper
         if (skill.SelfDamagePct > 0) player.Hp = Math.Max(1, player.Hp - player.MaxHp * skill.SelfDamagePct / 100);
         if (skill.HealFlat > 0 || skill.HealCoeff > 0)
         {
-            var heal = skill.HealFlat + (int)Math.Round(player.Spirit * (double)skill.HealCoeff);
+            var spiritProxy = Math.Max(0, player.MaxMp);
+            var heal = skill.HealFlat + (int)Math.Round(spiritProxy * (double)skill.HealCoeff);
             player.Hp = Math.Min(player.MaxHp, player.Hp + Math.Max(0, heal));
         }
     }
