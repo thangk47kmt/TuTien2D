@@ -15,3 +15,4 @@ public enum TechniqueKind { Cultivation = 0, Sense = 1, CombatBurst = 2, RealmLo
 public enum ZoneKind { Safe = 0, Meadow = 1, Forest = 2, Mountain = 3, Water = 4, CultivationSpot = 5, CommonHunt = 6, EliteHunt = 7, RareHunt = 8, ChestField = 9, SecretGate = 10 }
 public enum AuraLevel { Low = 0, Normal = 1, High = 2, Turbulent = 3 }
 public enum RumorKind { RareMonster = 0, AuraShift = 1, Boss = 2, ChestEstimate = 3, ZoneEvent = 4 }
+public enum SkillTag { Burst = 0, Guard = 1, Control = 2, Sense = 3, Craft = 4, Fortune = 5, Utility = 6 }
