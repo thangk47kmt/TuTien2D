@@ -8,14 +8,15 @@ public sealed record StatBreakdown(
 
 public sealed class CharacterStatCalculator
 {
-    public StatBreakdown Calculate(Player player, Profession profession, IReadOnlyList<(ItemDefinition Item, bool ProfessionMatch)> equipped, TechniqueDefinition? activeTechnique)
+    public StatBreakdown Calculate(Player player, Profession profession, IReadOnlyList<(ItemDefinition Item, bool ProfessionMatch)> equipped, TechniqueDefinition? activeTechnique, GameRule? rule = null, RealmThreshold? realm = null)
     {
-        var atk = 8 + player.Level * 2 + profession.AttackBonus;
-        var def = 3 + player.Level + profession.DefenseBonus;
-        var spirit = 8 + player.Level + profession.SpiritBonus;
-        var agi = 5 + player.Level + profession.AgilityBonus;
+        var r = rule ?? new GameRule();
+        var atk = r.AtkBase + player.Level * r.AtkPerLevel + profession.AttackBonus + (realm?.AtkBonus ?? 0);
+        var def = r.DefBase + player.Level * r.DefPerLevel + profession.DefenseBonus + (realm?.DefBonus ?? 0);
+        var spirit = r.SpiBase + player.Level * r.SpiPerLevel + profession.SpiritBonus + (realm?.SpiBonus ?? 0);
+        var agi = r.AgiBase + player.Level * r.AgiPerLevel + profession.AgilityBonus + (realm?.AgiBonus ?? 0);
         var fortune = 3 + player.Fortune + profession.FortuneBonus;
-        var maxHp = 100 + player.Level * 8;
+        var maxHp = r.HpBase + player.Level * r.HpPerLevel + (realm?.HpBonus ?? 0);
         var cultPct = profession.CultivationPercent;
         var stonePct = profession.StoneRewardPercent;
         var disc = profession.TechniqueDiscountPercent;
@@ -32,9 +33,7 @@ public sealed class CharacterStatCalculator
         if (activeTechnique is not null)
         {
             if (activeTechnique.Kind == TechniqueKind.Profession)
-            {
-                atk += profession.AttackBonus; def += profession.DefenseBonus; spirit += profession.SpiritBonus;
-            }
+            { atk += profession.AttackBonus; def += profession.DefenseBonus; spirit += profession.SpiritBonus; }
             if (activeTechnique.Kind == TechniqueKind.RealmLock)
             {
                 atk = (int)Math.Round(atk * 1.28 + player.ExtremePoints * 0.4);
@@ -46,9 +45,24 @@ public sealed class CharacterStatCalculator
             spirit += activeTechnique.SpiritBonus;
             detect += activeTechnique.DetectionRadiusBonus;
         }
-        if (player.Realm == RealmKind.QiRefining) { atk += 4; def += 3; spirit += 4; maxHp += 20; }
-        else if (player.Realm == RealmKind.Foundation) { atk += 10; def += 8; spirit += 10; maxHp += 50; }
-        return new StatBreakdown(atk, def, spirit, agi, maxHp, 60 + spirit * 2, fortune, Math.Clamp(detect, 1, 8), cultPct, stonePct, disc);
+        if (realm is null)
+        {
+            if (player.Realm == RealmKind.QiRefining) { atk += 4; def += 3; spirit += 4; maxHp += 20; }
+            else if (player.Realm == RealmKind.Foundation) { atk += 10; def += 8; spirit += 10; maxHp += 50; }
+        }
+        return new StatBreakdown(atk, def, spirit, agi, maxHp, r.MpBase + spirit * r.MpPerSpirit, fortune, Math.Clamp(detect, 1, 8), cultPct, stonePct, disc);
     }
-    public int XpRequired(Player player) => 60 + player.Level * 35;
+
+    public int XpRequired(Player player, GameRule? rule = null, RealmThreshold? realm = null)
+    {
+        var r = rule ?? new GameRule();
+        return r.XpBase + player.Level * r.XpPerLevel + (realm?.XpExtraPerLevel ?? 0);
+    }
+
+    public int CombatPower(StatBreakdown b, GameRule? rule = null, int skillBudget = 0)
+    {
+        var r = rule ?? new GameRule();
+        return r.WAtk * b.Attack + r.WDef * b.Defense + r.WSpi * b.Spirit + r.WAgi * b.Agility
+             + r.WHp * b.MaxHp / 10 + r.WMp * b.MaxMp / 10 + r.WSkill * skillBudget;
+    }
 }
