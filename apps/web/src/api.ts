@@ -49,6 +49,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export function combatPower(p: Profile) {
   return p.combatPower ?? (4 * p.attack + 3 * p.defense + 3 * p.spirit + 2 * p.agility + Math.floor(p.maxHp / 10) + Math.floor(p.maxMp / 10));
 }
+function asCombat(raw: Record<string, unknown>): Combat {
+  const log = raw.log ?? raw.Log ?? [];
+  return {
+    sessionId: String(raw.sessionId ?? raw.SessionId ?? ''),
+    monsterName: String(raw.monsterName ?? raw.MonsterName ?? 'Quai'),
+    monsterHp: Number(raw.monsterHp ?? raw.MonsterHp ?? 0),
+    monsterMaxHp: Number(raw.monsterMaxHp ?? raw.MonsterMaxHp ?? 1),
+    playerHp: Number(raw.playerHp ?? raw.PlayerHp ?? 0),
+    playerMaxHp: Number(raw.playerMaxHp ?? raw.PlayerMaxHp ?? 1),
+    status: String(raw.status ?? raw.Status ?? 'Active'),
+    log: Array.isArray(log) ? log.map(String) : [],
+  };
+}
+const names = ['Attack', 'Skill', 'Defend', 'UseItem', 'Withdraw'];
 export const api = {
   register: (userName: string, email: string, password: string) => request<TokenResponse>('/api/v1/auth/register', { method: 'POST', body: JSON.stringify({ userName, email, password }) }),
   login: (userName: string, password: string) => request<TokenResponse>('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ userName, password }) }),
@@ -59,8 +73,8 @@ export const api = {
   world: () => request<World>('/api/v1/world'),
   move: (x: number, y: number) => request<World>('/api/v1/world/move', { method: 'POST', body: JSON.stringify({ x, y }) }),
   sense: () => request<World>('/api/v1/world/sense', { method: 'POST' }),
-  startCombat: (spawnId: string) => request<Combat>('/api/v1/combat/start', { method: 'POST', body: JSON.stringify({ spawnId, idempotencyKey: crypto.randomUUID() }) }),
-  act: (id: string, action: number, itemId?: string) => request<Combat>(`/api/v1/combat/${id}/action`, { method: 'POST', body: JSON.stringify({ action, itemId, idempotencyKey: crypto.randomUUID() }) }),
+  startCombat: async (spawnId: string) => asCombat(await request('/api/v1/combat/start', { method: 'POST', body: JSON.stringify({ spawnId, idempotencyKey: crypto.randomUUID() }) })),
+  act: async (id: string, action: number, itemId?: string) => asCombat(await request(`/api/v1/combat/${id}/action`, { method: 'POST', body: JSON.stringify({ action, Action: names[action] ?? action, itemId, idempotencyKey: crypto.randomUUID() }) })),
   inventory: () => request<Item[]>('/api/v1/inventory'),
   equip: (itemId: string) => request<Item[]>('/api/v1/inventory/equip', { method: 'POST', body: JSON.stringify({ itemId }) }),
   unequip: (itemId: string) => request<Item[]>('/api/v1/inventory/unequip', { method: 'POST', body: JSON.stringify({ itemId }) }),
