@@ -39,5 +39,9 @@ public interface IAppDbContext
     DbSet<AuditLog> AuditLogs { get; }
     DbSet<ConfigurationVersion> ConfigurationVersions { get; }
     DbSet<IdempotencyRecord> IdempotencyRecords { get; }
+    DbSet<GameRule> GameRules { get; }
+    DbSet<RealmThreshold> RealmThresholds { get; }
+    DbSet<ProfessionSkill> ProfessionSkills { get; }
+    DbSet<ProfessionCounter> ProfessionCounters { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
