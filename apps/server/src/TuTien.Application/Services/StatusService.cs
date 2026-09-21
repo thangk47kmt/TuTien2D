@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TuTien.Application.Abstractions;
 using TuTien.Application.Common;
+using TuTien.Domain;
 using TuTien.Domain.Entities;
 using TuTien.Domain.Services;
 
