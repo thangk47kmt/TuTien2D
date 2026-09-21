@@ -30,7 +30,7 @@ public class GameplayService
         var player = new Player { Id = Guid.NewGuid(), UserId = userId, Name = NameValidator.Normalize(req.Name), ProfessionId = profession.Id, Level = 1, Realm = RealmKind.Mortal, Hp = 100, MaxHp = 100, Mp = 60, MaxMp = 60, SpiritStones = 40, MapX = 3, MapY = 3, ActiveTechniqueId = breath.Id, CreatedAtUtc = now, UpdatedAtUtc = now };
         _db.Players.Add(player);
         _db.PlayerTechniques.Add(new PlayerTechnique { Id = Guid.NewGuid(), PlayerId = player.Id, TechniqueDefinitionId = breath.Id, IsActive = true, LearnedAtUtc = now });
-        Discover(player, 3, 3); await _db.SaveChangesAsync(ct); await EnsureWorldPopulationAsync(ct);
+        await DiscoverAsync(player, 3, 3, ct); await _db.SaveChangesAsync(ct); await EnsureWorldPopulationAsync(ct);
         return await GetProfileAsync(userId, ct);
     }
 
@@ -50,7 +50,9 @@ public class GameplayService
         var player = await Load(userId, ct);
         if (req.X < 0 || req.Y < 0 || req.X >= MapWidth || req.Y >= MapHeight) throw new AppException("out_of_bounds", "Ra ngoai ban do.");
         if (Math.Abs(req.X - player.MapX) + Math.Abs(req.Y - player.MapY) > 1) throw new AppException("too_far", "Chi buoc 1 o.");
-        player.MapX = req.X; player.MapY = req.Y; Discover(player, req.X, req.Y); await _db.SaveChangesAsync(ct);
+        player.MapX = req.X; player.MapY = req.Y;
+        await DiscoverAsync(player, req.X, req.Y, ct);
+        try { await _db.SaveChangesAsync(ct); } catch (DbUpdateException) { }
         return await GetWorldAsync(userId, ct);
     }
 
@@ -58,7 +60,8 @@ public class GameplayService
     {
         var player = await Load(userId, ct);
         if (player.Mp < 8) throw new AppException("no_mp", "Thieu linh luc.");
-        player.Mp -= 8; Discover(player, player.MapX, player.MapY); await _db.SaveChangesAsync(ct);
+        player.Mp -= 8; await DiscoverAsync(player, player.MapX, player.MapY, ct);
+        try { await _db.SaveChangesAsync(ct); } catch (DbUpdateException) { }
         return await GetWorldAsync(userId, ct);
     }
 
@@ -174,7 +177,7 @@ public class GameplayService
     public async Task<List<RewardLineDto>> SettleCultivationAsync(Guid userId, string? key, CancellationToken ct)
     {
         var player = await Load(userId, ct);
-        var s = await _db.CultivationSessions.FirstOrDefaultAsync(x => x.PlayerId == player.Id && !x.IsSettled, ct) ?? throw new AppException("no_session", "Khong co phien tu luyen.");
+        var s = await _db.CultivationSessions.FirstOrDefaultAsync(x => x.PlayerId == player.Id && !s.IsSettled, ct) ?? throw new AppException("no_session", "Khong co phien tu luyen.");
         if (DateTime.UtcNow < s.EndUtc) throw new AppException("too_soon", "Chua het thoi gian.");
         var idem = key ?? $"cult:{s.Id}";
         if (await _db.RewardTransactions.AnyAsync(r => r.IdempotencyKey == idem, ct)) return [new RewardLineDto("CultivationXp", "Da ket toan", 0)];
@@ -269,13 +272,26 @@ public class GameplayService
         else if (player.Level >= 5 && player.Realm < RealmKind.QiRefining) { player.Realm = RealmKind.QiRefining; player.RealmStage = 1; }
     }
 
-    async Task<Player> Load(Guid userId, CancellationToken ct) => await _db.Players.Include(p => p.Profession).Include(p => p.Items).ThenInclude(i => i.Definition).Include(p => p.Equipment).Include(p => p.Techniques).Include(p => p.ActiveTechnique).FirstOrDefaultAsync(p => p.UserId == userId, ct) ?? throw new AppException("no_player", "Chua co nhan vat.", 404);
+    async Task<Player> Load(Guid userId, CancellationToken ct) =>
+        await _db.Players.Include(p => p.Profession).Include(p => p.Items).ThenInclude(i => i.Definition).Include(p => p.Equipment).Include(p => p.Techniques).Include(p => p.Discoveries).Include(p => p.ActiveTechnique).FirstOrDefaultAsync(p => p.UserId == userId, ct)
+        ?? throw new AppException("no_player", "Chua co nhan vat.", 404);
+
     StatBreakdown Breakdown(Player player) => _stats.Calculate(player, player.Profession!, player.Items.Where(i => i.IsEquipped && i.Definition is not null).Select(i => (i.Definition!, i.Definition!.PreferredProfessionCode == player.Profession!.Code)).ToList(), player.ActiveTechnique);
-    void Discover(Player player, int x, int y)
+
+    async Task DiscoverAsync(Player player, int x, int y, CancellationToken ct)
     {
-        for (var dx = -2; dx <= 2; dx++) for (var dy = -2; dy <= 2; dy++)
-        { var nx = x + dx; var ny = y + dy; if (nx < 0 || ny < 0 || nx >= MapWidth || ny >= MapHeight) continue; if (player.Discoveries.Any(d => d.X == nx && d.Y == ny)) continue; var disc = new PlayerDiscovery { Id = Guid.NewGuid(), PlayerId = player.Id, X = nx, Y = ny, DiscoveredAtUtc = DateTime.UtcNow }; player.Discoveries.Add(disc); _db.PlayerDiscoveries.Add(disc); }
+        var existing = await _db.PlayerDiscoveries.Where(d => d.PlayerId == player.Id).Select(d => new { d.X, d.Y }).ToListAsync(ct);
+        var seen = existing.Select(d => (d.X, d.Y)).ToHashSet();
+        for (var dx = -2; dx <= 2; dx++)
+        for (var dy = -2; dy <= 2; dy++)
+        {
+            var nx = x + dx; var ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= MapWidth || ny >= MapHeight) continue;
+            if (!seen.Add((nx, ny))) continue;
+            _db.PlayerDiscoveries.Add(new PlayerDiscovery { Id = Guid.NewGuid(), PlayerId = player.Id, X = nx, Y = ny, DiscoveredAtUtc = DateTime.UtcNow });
+        }
     }
+
     async Task<WorldZone?> ZoneAt(int x, int y, CancellationToken ct) => await _db.WorldZones.FirstOrDefaultAsync(z => x >= z.MinX && x <= z.MaxX && y >= z.MinY && y <= z.MaxY, ct);
     async Task<List<VisibleEntityDto>> Visible(Player player, CancellationToken ct)
     {
@@ -289,5 +305,5 @@ public class GameplayService
     }
     static CombatStateDto ToCombat(CombatSession s, Player p) => new(s.Id, s.MonsterName, s.MonsterHp, s.MonsterMaxHp, p.Hp, p.MaxHp, s.Status.ToString(), s.Actions.OrderBy(a => a.CreatedAtUtc).Select(a => a.Note).ToList());
     static InventoryItemDto ToItem(PlayerItem i, string prof) { var d = i.Definition!; return new InventoryItemDto(i.Id, d.Id, d.Code, d.Name, d.Icon, d.Type.ToString(), d.Quality.ToString(), i.Quantity, i.IsEquipped, i.IsLocked, d.Attack, d.Defense, d.Spirit, d.HealAmount, d.PreferredProfessionCode, d.ProfessionBonusPercent, d.PreferredProfessionCode == prof); }
-    PlayerProfileDto ToProfile(Player p, StatBreakdown b) => new(p.Id, p.Name, p.Profession!.Code, p.Profession.Name, p.Level, p.Realm.ToString(), p.RealmStage, p.CultivationXp, _stats.XpRequired(p), p.Hp, b.MaxHp, p.Mp, b.MaxMp, b.Attack, b.Defense, b.Spirit, b.Agility, b.Fortune, p.Stability, p.SpiritStones, p.ProfessionPoints, p.ExtremePoints, p.RealmLocked, p.MapX, p.MapY, p.ActiveTechnique?.Code, p.PityScore);
+    PlayerProfileDto ToProfile(Player p, StatBreakdown b) => new(p.Id, p.Name, p.Profession!.Code, p.Profession.Name, p.Level, p.Realm.ToString(), p.RealmStage, p.CultivationXp, _stats.XpRequired(p), p.Hp, b.MaxHp, p.Mp, b.MaxMp, b.Attack, b.Defense, b.Spirit, b.Agility, b.Fortune, p.Stability, p.SpiritStones, p.ProfessionPoints, p.ExtremePoints, p.RealmLocked, p.MapX, p.MapY, p.ActiveTechnique?.Code, p.PityScore, _stats.CombatPower(b));
 }
