@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, clearTokens, getAccess, getRole, saveTokens, type Combat, type Item, type Profession, type Profile, type Rumor, type Technique, type TravelLoc, type World } from './api'
+import { api, clearTokens, combatPower, getAccess, getRole, saveTokens, type AdminMon, type AdminProf, type Balance, type Catalog, type Combat, type Item, type Profession, type Profile, type Rumor, type Technique, type TravelLoc, type World } from './api'
 
 type Panel = 'map' | 'bag' | 'tech' | 'cult' | 'rumor' | 'travel' | 'admin'
 
@@ -14,6 +14,8 @@ export default function App() {
   const [rumors, setRumors] = useState<Rumor[]>([])
   const [locs, setLocs] = useState<TravelLoc[]>([])
   const [cult, setCult] = useState<{ status: string; endUtc?: string; expectedXp?: number; canSettle: boolean } | null>(null)
+  const [catalog, setCatalog] = useState<Catalog | null>(null)
+  const [balance, setBalance] = useState<Balance | null>(null)
   const [panel, setPanel] = useState<Panel>('map')
   const [err, setErr] = useState('')
   const [user, setUser] = useState('')
@@ -57,13 +59,15 @@ export default function App() {
       if (p === 'rumor') setRumors(await api.rumors())
       if (p === 'travel') setLocs(await api.locations())
       if (p === 'cult') setCult(await api.cultivate())
-      if (p === 'admin') setErr(JSON.stringify(await api.admin()))
+      if (p === 'admin') { setCatalog(await api.catalog()); setBalance(await api.balance(5)) }
     } catch (e) { setErr(e instanceof Error ? e.message : 'Loi') }
   }
 
   if (!ready) return <div className="boot">Dang mo tien lo</div>
   if (!authed) return (<div className="gate"><div className="seal">仙</div><h1>Tu Tien Du Hanh</h1><label>Tai khoan<input value={user} onChange={e => setUser(e.target.value)} placeholder="daoist" /></label><label>Mat khau<input value={pass} onChange={e => setPass(e.target.value)} type="password" /></label>{err && <p className="banner">{err}</p>}<button onClick={() => void login()}>Dang nhap</button></div>)
   if (!profile) return (<div className="gate"><h2>Tao nhan vat</h2><label>Ten<input value={name} onChange={e => setName(e.target.value)} /></label><label>Nghe<select value={code} onChange={e => setCode(e.target.value)}>{professions.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}</select></label>{err && <p className="banner">{err}</p>}<button onClick={() => void create()}>Nhap the</button></div>)
+
+  const cp = combatPower(profile)
 
   return (
     <div className="shell">
@@ -79,7 +83,7 @@ export default function App() {
           <div>HP {profile.hp}/{profile.maxHp}<div className="bar"><span className="hp" style={{ width: `${profile.hp / Math.max(1,profile.maxHp) * 100}%` }} /></div></div>
           <div>MP {profile.mp}/{profile.maxMp}<div className="bar"><span className="mp" style={{ width: `${profile.mp / Math.max(1,profile.maxMp) * 100}%` }} /></div></div>
           <div>XP {profile.cultivationXp}/{profile.xpRequired}<div className="bar"><span className="xp" style={{ width: `${profile.cultivationXp / Math.max(1,profile.xpRequired) * 100}%` }} /></div></div>
-          <div className="gold">{profile.spiritStones} da · pity {profile.pityScore}</div>
+          <div className="gold">{profile.spiritStones} da · LC {cp} · {profile.attack}/{profile.defense}/{profile.spirit}</div>
         </div>
         {panel === 'map' && world && (<>
           <div className="map-head"><div>{world.zoneName}<small>Aura x{world.aura} · ({world.playerX},{world.playerY})</small></div><button onClick={async () => setWorld(await api.sense())}>Cam ung</button></div>
@@ -99,8 +103,41 @@ export default function App() {
         {panel === 'cult' && <section className="card"><h3>Tu luyen</h3><p>{cult?.status} {cult?.endUtc && `den ${cult.endUtc}`}</p><p>Du kien {cult?.expectedXp ?? 0} tu vi</p><button onClick={async () => { setCult(await api.startCultivate(5)); setErr('Da ngoi 5 phut server.') }}>Ngoi 5 phut</button>{cult?.canSettle && <button onClick={async () => { const r = await api.settle(); setErr(r.map(x=>x.text).join(' · ')); setCult(await api.cultivate()); setProfile(await api.profile()) }}>Ket toan</button>}</section>}
         {panel === 'rumor' && <section className="cards">{rumors.map(r => <article className="card" key={r.id}><h3>{r.title}</h3><p>{r.body}</p><small>{r.approximateZone} · {r.reliability}%</small></article>)}</section>}
         {panel === 'travel' && <section className="cards">{locs.map(l => <article className="card" key={l.id}><h3>{l.name}</h3><p>{l.distanceKm} km (mock)</p><button onClick={async () => { await api.checkIn(l.id); setErr('Check-in gia lap xong') }}>Check-in</button></article>)}</section>}
+        {panel === 'admin' && <AdminDesk catalog={catalog} balance={balance} onReload={() => void open('admin')} onErr={setErr} />}
         {combat && <dialog open className="modal"><h3>{combat.monsterName}</h3><p>Quai {combat.monsterHp}/{combat.monsterMaxHp} · Ban {combat.playerHp}</p>{combat.log.slice(-5).map((l,i)=><p key={i}>{l}</p>)}{combat.status==='Active' ? <div className="grid2"><button onClick={async () => setCombat(await api.act(combat.sessionId, 0))}>Danh</button><button onClick={async () => setCombat(await api.act(combat.sessionId, 1))}>Van cong</button><button onClick={async () => setCombat(await api.act(combat.sessionId, 2))}>Thu</button><button onClick={async () => setCombat(await api.act(combat.sessionId, 4))}>Rut</button></div> : <button onClick={async () => { setCombat(null); setProfile(await api.profile()); setWorld(await api.world()); setItems(await api.inventory()) }}>Dong</button>}</dialog>}
       </main>
+    </div>
+  )
+}
+
+function AdminDesk({ catalog, balance, onReload, onErr }: { catalog: Catalog | null; balance: Balance | null; onReload: () => void; onErr: (s: string) => void }) {
+  const [profs, setProfs] = useState<AdminProf[]>(catalog?.professions ?? [])
+  const [mons, setMons] = useState<AdminMon[]>(catalog?.monsters ?? [])
+  useEffect(() => { setProfs(catalog?.professions ?? []); setMons(catalog?.monsters ?? []) }, [catalog])
+  return (
+    <div>
+      <h3>Admin</h3>
+      <p>Sua so roi luu. Balance level 5, band {balance?.band} target {balance?.target}.</p>
+      <button onClick={async () => { await api.applyBalance(5); onErr('Da apply balance'); onReload() }}>Apply can bang</button>
+      {balance && <section className="cards">{balance.rows.map(r => <article className="card" key={r.code}><h3>{r.name}</h3><p>ATK {r.attack} DEF {r.defense} SPI {r.spirit}</p><p>Raw {r.raw} {balance.flags.find(f => f.code===r.code)?.ok ? 'OK' : 'LECH'}</p></article>)}</section>}
+      <h4>Nghe</h4>
+      {profs.map((p, i) => <div className="card" key={p.id}>
+        <b>{p.name}</b>
+        {(['attackBonus','defenseBonus','spiritBonus','cultivationPercent'] as const).map(k => (
+          <label key={k}>{k}<input type="number" value={p[k]} onChange={e => { const n=[...profs]; n[i] = { ...p, [k]: Number(e.target.value) }; setProfs(n) }} /></label>
+        ))}
+        <button onClick={async () => { await api.saveProfession(p); onErr('Luu nghe ' + p.code); onReload() }}>Luu</button>
+      </div>)}
+      <h4>Quai</h4>
+      {mons.map((m, i) => <div className="card" key={m.id}>
+        <b>{m.name}</b>
+        {(['hp','attack','defense','spawnWeight'] as const).map(k => (
+          <label key={k}>{k}<input type="number" value={m[k]} onChange={e => { const n=[...mons]; n[i] = { ...m, [k]: Number(e.target.value) }; setMons(n) }} /></label>
+        ))}
+        <button onClick={async () => { await api.saveMonster(m); onErr('Luu quai ' + m.code); onReload() }}>Luu</button>
+      </div>)}
+      {catalog?.skills && <p>Ky nang nghe: {catalog.skills.map(s => s.name).join(', ')}</p>}
+      {catalog?.counters && <p>Khac che: {catalog.counters.map(c => `${c.attackerCode}->${c.defenderCode} x${c.damageMul}`).join(' | ')}</p>}
     </div>
   )
 }
