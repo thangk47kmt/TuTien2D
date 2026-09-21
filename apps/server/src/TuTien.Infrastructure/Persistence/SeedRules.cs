@@ -53,6 +53,25 @@ public static class SeedRules
             C("education", "security", 0.90m, "Cam yeu Sat");
             C("service", "engineering", 0.90m, "Hoa yeu Sat");
         }
+
+        if (!await db.StatusDefinitions.AnyAsync())
+        {
+            StatusDefinition St(string code, string name, string desc, StatusPolarity pol, int sec, int turns,
+                int atk = 0, int def = 0, int spi = 0, int cult = 0, decimal outgoing = 1m, decimal incoming = 1m, decimal aura = 1m, int regenMp = 0) => new()
+            {
+                Id = Guid.NewGuid(), Code = code, Name = name, Description = desc, Polarity = pol,
+                DurationSeconds = sec, DurationTurns = turns, AtkPct = atk, DefPct = def, SpiPct = spi,
+                CultivationPct = cult, OutgoingMul = outgoing, IncomingMul = incoming, AuraMul = aura, RegenMp = regenMp
+            };
+            db.StatusDefinitions.AddRange(
+                St("linh_chien", "Linh Chien", "+20% ATK 10 phut", StatusPolarity.Buff, 600, 0, atk: 20),
+                St("linh_khien", "Linh Khien", "+20% DEF, incoming x0.9, 3 hiep", StatusPolarity.Buff, 0, 3, def: 20, incoming: 0.90m),
+                St("hoi_khi", "Hoi Khi", "Regen MP 4 hiep", StatusPolarity.Buff, 0, 4, regenMp: 8),
+                St("travel_linh_khi", "Du Hanh Linh Khi", "Check-in aura + tu vi", StatusPolarity.Buff, 3600, 0, cult: 10, aura: 1.15m),
+                St("khiem_the", "Khiem The", "Giam sat vao", StatusPolarity.Buff, 0, 3, incoming: 0.80m),
+                St("me_loan", "Me Loan", "+sat ra 2 hiep", StatusPolarity.Buff, 0, 2, outgoing: 1.15m, spi: 10),
+                St("pha_the", "Pha The", "+ATK ngan", StatusPolarity.Buff, 0, 2, atk: 15, outgoing: 1.10m));
+        }
         await db.SaveChangesAsync();
     }
 }
