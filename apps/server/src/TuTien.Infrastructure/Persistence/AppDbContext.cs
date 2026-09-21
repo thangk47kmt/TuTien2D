@@ -46,6 +46,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<RealmThreshold> RealmThresholds => Set<RealmThreshold>();
     public DbSet<ProfessionSkill> ProfessionSkills => Set<ProfessionSkill>();
     public DbSet<ProfessionCounter> ProfessionCounters => Set<ProfessionCounter>();
+    public DbSet<StatusDefinition> StatusDefinitions => Set<StatusDefinition>();
+    public DbSet<PlayerStatus> PlayerStatuses => Set<PlayerStatus>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -115,5 +117,12 @@ public class AppDbContext : DbContext, IAppDbContext
         b.Entity<RealmThreshold>(e => e.HasIndex(x => x.Realm).IsUnique());
         b.Entity<ProfessionSkill>(e => { e.HasIndex(x => x.Code).IsUnique(); e.HasIndex(x => x.ProfessionCode); });
         b.Entity<ProfessionCounter>(e => e.HasIndex(x => new { x.AttackerCode, x.DefenderCode }).IsUnique());
+        b.Entity<StatusDefinition>(e => e.HasIndex(x => x.Code).IsUnique());
+        b.Entity<PlayerStatus>(e =>
+        {
+            e.HasIndex(x => new { x.PlayerId, x.StatusDefinitionId });
+            e.HasOne(x => x.Definition).WithMany().HasForeignKey(x => x.StatusDefinitionId);
+            e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId);
+        });
     }
 }
