@@ -29,3 +29,4 @@ public record AdminMonsterDto(Guid Id, string Code, string Name, string Kind, in
 public record UpdateSpawnWeightRequest(int SpawnWeight);
 public record UpdateAuraRequest(decimal Multiplier);
 public record ToggleEventRequest(bool Enabled);
+public record StatusDto(Guid Id, string Code, string Name, string Icon, string Polarity, int Stacks, int RemainingTurns, DateTime? ExpiresAtUtc, string Source);
