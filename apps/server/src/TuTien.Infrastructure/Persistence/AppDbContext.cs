@@ -42,6 +42,10 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ConfigurationVersion> ConfigurationVersions => Set<ConfigurationVersion>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+    public DbSet<GameRule> GameRules => Set<GameRule>();
+    public DbSet<RealmThreshold> RealmThresholds => Set<RealmThreshold>();
+    public DbSet<ProfessionSkill> ProfessionSkills => Set<ProfessionSkill>();
+    public DbSet<ProfessionCounter> ProfessionCounters => Set<ProfessionCounter>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -68,12 +72,6 @@ public class AppDbContext : DbContext, IAppDbContext
         {
             e.HasOne(x => x.Player).WithMany(x => x.Items).HasForeignKey(x => x.PlayerId);
             e.HasOne(x => x.Definition).WithMany().HasForeignKey(x => x.ItemDefinitionId);
-        });
-        b.Entity<PlayerEquipment>(e =>
-        {
-            e.HasIndex(x => new { x.PlayerId, x.Slot }).IsUnique();
-            e.HasOne(x => x.Player).WithMany(x => x.Equipment).HasForeignKey(x => x.PlayerId);
-            e.HasOne(x => x.Item).WithMany().HasForeignKey(x => x.PlayerItemId);
         });
         b.Entity<TechniqueDefinition>(e => e.HasIndex(x => x.Code).IsUnique());
         b.Entity<PlayerTechnique>(e =>
@@ -113,5 +111,9 @@ public class AppDbContext : DbContext, IAppDbContext
         b.Entity<IdempotencyRecord>(e => e.HasIndex(x => new { x.UserId, x.Key }).IsUnique());
         b.Entity<GameEvent>(e => e.HasIndex(x => x.Code).IsUnique());
         b.Entity<WorldZone>(e => e.HasOne(x => x.Map).WithMany().HasForeignKey(x => x.MapId));
+        b.Entity<GameRule>(e => e.HasIndex(x => x.Code).IsUnique());
+        b.Entity<RealmThreshold>(e => e.HasIndex(x => x.Realm).IsUnique());
+        b.Entity<ProfessionSkill>(e => { e.HasIndex(x => x.Code).IsUnique(); e.HasIndex(x => x.ProfessionCode); });
+        b.Entity<ProfessionCounter>(e => e.HasIndex(x => new { x.AttackerCode, x.DefenderCode }).IsUnique());
     }
 }
