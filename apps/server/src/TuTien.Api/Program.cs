@@ -21,6 +21,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<GameplayService>();
 builder.Services.AddScoped<AdminCatalogService>();
 builder.Services.AddScoped<BalanceService>();
+builder.Services.AddScoped<StatusService>();
 builder.Services.AddHostedService<WorldHeartbeatService>();
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev-only-change-me-tutien-du-hanh-32ch!";
 var issuer = builder.Configuration["Jwt:Issuer"] ?? "tutien";
