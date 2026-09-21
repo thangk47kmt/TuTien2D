@@ -51,6 +51,13 @@ export default function App() {
       else if (chest) { const loot = await api.openChest(chest.id); setErr(loot.map(l => l.text).join(' · ')); setProfile(await api.profile()); setWorld(await api.world()) }
     } catch (e) { setErr(e instanceof Error ? e.message : 'Loi di chuyen') }
   }
+  async function fight(action: number) {
+    if (!combat) return
+    const id = combat.sessionId
+    if (!id) { setErr('Thieu ma tran'); return }
+    try { setCombat(await api.act(id, action)) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Danh khong duoc') }
+  }
   async function open(p: Panel) {
     setPanel(p)
     try {
@@ -68,6 +75,7 @@ export default function App() {
   if (!profile) return (<div className="gate"><h2>Tao nhan vat</h2><label>Ten<input value={name} onChange={e => setName(e.target.value)} /></label><label>Nghe<select value={code} onChange={e => setCode(e.target.value)}>{professions.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}</select></label>{err && <p className="banner">{err}</p>}<button onClick={() => void create()}>Nhap the</button></div>)
 
   const cp = combatPower(profile)
+  const fighting = !combat ? false : /active/i.test(String(combat.status))
 
   return (
     <div className="shell">
@@ -78,7 +86,7 @@ export default function App() {
         {getRole() === 'Admin' && <button onClick={() => void open('admin')}>admin</button>}
       </aside>
       <main className="main">
-        {err && <p className="banner">{err}</p>}
+        {err && <p className="banner" onClick={() => setErr('')}>{err}</p>}
         <div className="hud">
           <div>HP {profile.hp}/{profile.maxHp}<div className="bar"><span className="hp" style={{ width: `${profile.hp / Math.max(1,profile.maxHp) * 100}%` }} /></div></div>
           <div>MP {profile.mp}/{profile.maxMp}<div className="bar"><span className="mp" style={{ width: `${profile.mp / Math.max(1,profile.maxMp) * 100}%` }} /></div></div>
@@ -104,7 +112,7 @@ export default function App() {
         {panel === 'rumor' && <section className="cards">{rumors.map(r => <article className="card" key={r.id}><h3>{r.title}</h3><p>{r.body}</p><small>{r.approximateZone} · {r.reliability}%</small></article>)}</section>}
         {panel === 'travel' && <section className="cards">{locs.map(l => <article className="card" key={l.id}><h3>{l.name}</h3><p>{l.distanceKm} km (mock)</p><button onClick={async () => { await api.checkIn(l.id); setErr('Check-in gia lap xong') }}>Check-in</button></article>)}</section>}
         {panel === 'admin' && <AdminDesk catalog={catalog} balance={balance} onReload={() => void open('admin')} onErr={setErr} />}
-        {combat && <dialog open className="modal"><h3>{combat.monsterName}</h3><p>Quai {combat.monsterHp}/{combat.monsterMaxHp} · Ban {combat.playerHp}</p>{combat.log.slice(-5).map((l,i)=><p key={i}>{l}</p>)}{combat.status==='Active' ? <div className="grid2"><button onClick={async () => setCombat(await api.act(combat.sessionId, 0))}>Danh</button><button onClick={async () => setCombat(await api.act(combat.sessionId, 1))}>Van cong</button><button onClick={async () => setCombat(await api.act(combat.sessionId, 2))}>Thu</button><button onClick={async () => setCombat(await api.act(combat.sessionId, 4))}>Rut</button></div> : <button onClick={async () => { setCombat(null); setProfile(await api.profile()); setWorld(await api.world()); setItems(await api.inventory()) }}>Dong</button>}</dialog>}
+        {combat && <dialog open className="modal"><h3>{combat.monsterName}</h3><p>Quai {combat.monsterHp}/{combat.monsterMaxHp} · Ban {combat.playerHp}</p>{(combat.log ?? []).slice(-6).map((l,i)=><p key={i}>{l}</p>)}{fighting ? <div className="grid2"><button type="button" onClick={() => void fight(0)}>Danh</button><button type="button" onClick={() => void fight(1)}>Van cong</button><button type="button" onClick={() => void fight(2)}>Thu</button><button type="button" onClick={() => void fight(4)}>Rut</button></div> : <button type="button" onClick={async () => { setCombat(null); setProfile(await api.profile()); setWorld(await api.world()); setItems(await api.inventory()) }}>Dong</button>}</dialog>}
       </main>
     </div>
   )
