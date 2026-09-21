@@ -43,6 +43,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await SeedData.EnsureAsync(db);
+    await SeedRules.EnsureAsync(db);
 }
 app.UseExceptionHandler(err =>
 {
