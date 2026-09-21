@@ -35,7 +35,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     };
 });
 builder.Services.AddAuthorization(o => o.AddPolicy("Admin", p => p.RequireRole("Admin")));
-var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:5173"];
+var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:5173", "http://127.0.0.1:5173"];
 builder.Services.AddCors(o => o.AddPolicy("web", p => p.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -45,8 +45,19 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await SeedData.EnsureAsync(db);
-    await SeedRules.EnsureAsync(db);
+    try
+    {
+        await SeedData.EnsureAsync(db);
+        await SeedRules.EnsureAsync(db);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Seed failed, recreating SQLite: " + ex.Message);
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.EnsureCreatedAsync();
+        await SeedData.EnsureAsync(db);
+        await SeedRules.EnsureAsync(db);
+    }
 }
 app.UseExceptionHandler(err =>
 {
@@ -62,7 +73,7 @@ app.UseExceptionHandler(err =>
         else
         {
             ctx.Response.StatusCode = 500;
-            await ctx.Response.WriteAsJsonAsync(new ApiError("server_error", "Loi may chu."));
+            await ctx.Response.WriteAsJsonAsync(new ApiError("server_error", ex?.InnerException?.Message ?? ex?.Message ?? "Loi may chu."));
         }
     });
 });
